@@ -26,7 +26,8 @@ BOLD_CROSS = "\u2718"
 
 
 class ShellException(Exception):
-    pass
+    def __init__(self, result: ShellResult):
+        super().__init__('Process exit with code %d' % result.returncode)
 
 
 def quote(value: Union[str, Path]) -> str:
@@ -160,7 +161,8 @@ async def bash_async(
     tty=None,
     user=None,
     stdin=None,
-    cwd=None
+    cwd=None,
+    check=True,
 ):
     assert type(stdin) in (type(None), bytes, str), "restrictions for now"
 
@@ -191,7 +193,10 @@ async def bash_async(
     await proc.wait()
     output.close(proc.returncode)
 
-    return ShellResult(proc.returncode, stdout, stderr)
+    result = ShellResult(proc.returncode, stdout, stderr)
+    if check and result.returncode != 0:
+        raise ShellException(result)
+    return result
 
 
 def bash(command: Union[str, List[str]], **kw):
