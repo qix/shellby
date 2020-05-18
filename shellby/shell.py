@@ -73,11 +73,12 @@ class OutputHandler:
         self.quiet = quiet
 
     def open(self):
-        if self.quiet:
-            return
-        self.print(
-            white(self.command.string), symbol="#" if self.user == "root" else "$",
-        )
+        if not self.quiet:
+            self.print(
+                white(self.command.string), symbol="#" if self.user == "root" else "$",
+            )
+
+        return (subprocess.PIPE, subprocess.PIPE)
 
     async def _read_encoded(self, stream):
         if stream is None:
@@ -170,13 +171,13 @@ async def bash_async(
     if type(stdin) is str:
         stdin = stdin.encode("utf-8")
 
-    output.open()
+    (stdout, stderr) = output.open()
     proc = await asyncio.create_subprocess_shell(
         command.full_string,
         stdin=subprocess.PIPE if stdin else None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        cwd=cwd,
+        stdout=stdout,
+        stderr=stderr,
+        cwd=Path(cwd).expanduser() if cwd else None,
     )
 
     collect_promise = output.collect(proc.stdout, proc.stderr)
