@@ -27,13 +27,16 @@ BOLD_CROSS = "\u2718"
 
 class ShellException(Exception):
     def __init__(self, result: ShellResult):
-        super().__init__('Process exit with code %d' % result.returncode)
+        super().__init__("Process exit with code %d" % result.returncode)
 
 
 def quote(value: Union[str, Path]) -> str:
     if isinstance(value, Path):
-        value = str(value)
-    return shlex.quote(value)
+        return shlex.quote(str(value))
+    elif type(value) in (bytes, str):
+        return shlex.quote(value)
+    else:
+        raise Exception("Invalid command line argument type: %s" % type(value))
 
 
 def join_command(args: List[Union[str, Path]]):
@@ -76,7 +79,8 @@ class OutputHandler:
     def open(self):
         if not self.quiet:
             self.print(
-                white(self.command.string), symbol="#" if self.user == "root" else "$",
+                white(self.command.string),
+                symbol="#" if self.user == "root" else "$",
             )
 
         return (subprocess.PIPE, subprocess.PIPE)
@@ -163,12 +167,19 @@ async def bash_async(
     stdin=None,
     cwd=None,
     check=True,
+    display=True,
+    quiet=False,
 ):
     assert type(stdin) in (type(None), bytes, str), "restrictions for now"
 
     command = Command(command)
     if output is None:
-        output = OutputHandler(command=command, name=name)
+        output = OutputHandler(
+            command=command,
+            name=name,
+            display=display,
+            quiet=quiet,
+        )
 
     if type(stdin) is str:
         stdin = stdin.encode("utf-8")
@@ -199,5 +210,8 @@ async def bash_async(
     return result
 
 
-def bash(command: Union[str, List[str]], **kw):
-    return asyncio.run(bash_async(command, **kw))
+def bash(command: Union[str, List[str]], wait=True, **kw):
+    coro = bash_async(command, **kw)
+    if not wait:
+        return coro
+    return asyncio.run(coro)
